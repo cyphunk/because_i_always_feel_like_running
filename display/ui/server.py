@@ -4,9 +4,10 @@
 import web
 from web.wsgiserver import CherryPyWSGIServer
 import subprocess
-import os
+import os, signal
 import re
 import time
+import liblo
 
 DEBUG=True
 MODEL_NAME     = os.environ.get('MODEL_NAME') or "v1"
@@ -14,28 +15,32 @@ BASE_DIR       = os.environ.get('BASE_DIR') or os.path.dirname(os.path.abspath(_
 
 MEDIADIR         = BASE_DIR+"/media_player/media"
 MEDIACONTROLFILE = BASE_DIR+"/media_player/media_selected.txt"
-MEDIAVIDEO       = ['mov','avi','mp4']
+MEDIAVIDEO       = ['mov','avi','mp4', 'mkv']
 MEDIAIMAGE       = ['png','jpeg','jpg','gif']
 MEDIACOUNTER     = ['txt'] # special type to schedule in the counter
 MEDIATYPES       = MEDIAVIDEO+MEDIAIMAGE+MEDIACOUNTER
 MEDIADEFAULT     = '00_blank.png'
-MATRIXARGS    = os.environ.get('MATRIXARGS') or""
+MATRIXARGS    = os.environ.get('MATRIXARGS') or ""
+BRIGHTNESS    = os.environ.get('BRIGHTNESS') or "100"
 CMDIMAGE      = os.environ.get('CMDIMAGE') or "eog"
 CMDIMAGEARGS  = os.environ.get('CMDIMAGEARGS') or ""
-CMDVIDEO      = os.environ.get('CMDVIDEO') or"mplayer"
-CMDVIDEOARGS  = os.environ.get('CMDVIDEOARGS') or""
+CMDVIDEO      = os.environ.get('CMDVIDEO') or "mplayer"
+CMDVIDEOARGS  = os.environ.get('CMDVIDEOARGS') or ""
 CMDCOUNT      = os.environ.get('CMDCOUNT') or CMDIMAGE
-CMDCOUNTARGS  = os.environ.get('CMDCOUNTARGS') or""
-CMDTESTDISPLAY = os.environ.get('CMDTESTDISPLAY') or "../test_display.sh"
+CMDCOUNTARGS  = os.environ.get('CMDCOUNTARGS') or ""
+CMDTESTDISPLAY = os.environ.get('CMDTESTDISPLAY') or  "../test_display.sh"
+CMDTEXT      = os.environ.get('CMDTEXT') or "cat"
 
 urls = (
-  "/osc",        "osc",
-  "/osctest",    "osctest",
+  "/osctest",     "osctest",
+  "/displaytest", "displaytest",
 
-  "/counter",    "counter",
-  "/media_play", "media_play",
-  "/upload",     "upload",
-  "/(.*)",           "index"
+  "/help",        "help",
+  "/hr",          "hr",
+  "/counter",     "counter",
+  "/media_play",  "media_play",
+  "/upload",      "upload",
+  "/(.*)",        "index"
 )
 
 def debug(message):
@@ -54,50 +59,45 @@ class myApp(web.application):
 
 app = myApp(urls, globals())
 
-class osc:
+class hr:
     def GET(self):
         x = web.input()
-        import liblo
-        t = liblo.Address(1337)
-        liblo.send(t, x.path, x.arg)
+        t = liblo.Address(9001)
+        global BRIGHTNESS
+        if 'brightness' in x and len(x.brightness)>0 and x.brightness != 'undefined':
+            BRIGHTNESS = str(min(100, int(x.brightness)))
+
+        if x.do == 'start':
+            liblo.send(t, 'max', BRIGHTNESS)
+            liblo.send(t, 'pause', 0)
+        elif x.do == 'stop':
+            liblo.send(t, 'pause', 1)
+        elif x.do == 'set':
+            print("send hr", x.hr)
+            liblo.send(t, 'int', int(x.hr))
         return
 class osctest:
     def GET(self):
-        x = web.input()
-        import liblo
-        t = liblo.Address(1337)
-        liblo.send(t, '/'+MODEL_NAME.lower()+'/led/1', 1)
-        time.sleep(0.1)
-        liblo.send(t, '/'+MODEL_NAME.lower()+'/led/2', 1)
-        time.sleep(0.1)
-        liblo.send(t, '/'+MODEL_NAME.lower()+'/led/3', 1)
-        time.sleep(0.1)
-        liblo.send(t, '/'+MODEL_NAME.lower()+'/led/4', 1)
-        time.sleep(0.1)
-        liblo.send(t, '/'+MODEL_NAME.lower()+'/led/5', 1)
-        time.sleep(0.1)
-        liblo.send(t, '/'+MODEL_NAME.lower()+'/led/6', 1)
-        time.sleep(0.1)
-        liblo.send(t, '/'+MODEL_NAME.lower()+'/led/7', 1)
-        time.sleep(0.1)
-        liblo.send(t, '/'+MODEL_NAME.lower()+'/led/8', 1)
-        time.sleep(5)
-        liblo.send(t, '/'+MODEL_NAME.lower()+'/led/1', 0)
-        time.sleep(0.1)
-        liblo.send(t, '/'+MODEL_NAME.lower()+'/led/2', 0)
-        time.sleep(0.1)
-        liblo.send(t, '/'+MODEL_NAME.lower()+'/led/3', 0)
-        time.sleep(0.1)
-        liblo.send(t, '/'+MODEL_NAME.lower()+'/led/4', 0)
-        time.sleep(0.1)
-        liblo.send(t, '/'+MODEL_NAME.lower()+'/led/5', 0)
-        time.sleep(0.1)
-        liblo.send(t, '/'+MODEL_NAME.lower()+'/led/6', 0)
-        time.sleep(0.1)
-        liblo.send(t, '/'+MODEL_NAME.lower()+'/led/7', 0)
-        time.sleep(0.1)
-        liblo.send(t, '/'+MODEL_NAME.lower()+'/led/8', 0)
-        time.sleep(0.1)
+        t = liblo.Address(9000)
+        for x in range(1,20):
+            print ("osctest loop", x)
+            for i in range(100,0,-1):
+                liblo.send(t, 'int', i)
+                time.sleep(0.01)
+            # for i in range(0,100,10):
+            #     liblo.send(t, 'int', i)
+            #     time.sleep(0.01)
+        for i in range(0,100):
+            liblo.send(t, 'int', i)
+            time.sleep(0.001)
+        return "done"
+
+class displaytest:
+    def GET(self):
+        killall()
+        os.system(CMDTESTDISPLAY+" &")
+        return "started"
+
 
 def get_filepaths(directory, filetypes=MEDIATYPES):
     file_paths = []  # List which will store all of the full filepaths.
@@ -141,9 +141,14 @@ class index:
     def GET(self, file=None):
         # Static files (style sheets, index.html)
         if file:
-            #print "have file", file
-            f = open(UIDIR+'/'+file, 'r')
-            return f.read()
+            if not os.path.exists(file):
+                raise web.NotFound()
+            elif not os.access(file, os.R_OK):
+                raise web.Unauthorized()
+            else:
+                #print "have file", file
+                f = open(UIDIR+'/'+file, 'r')
+                return f.read()
 
         cwd=os.getcwd()
 
@@ -176,6 +181,7 @@ class index:
         return """<html><head><title>model: %s</title><meta charset="utf-8">
         <link rel="stylesheet" href="/style.css">
         </head>
+        <body>
         <script>
         function http_get(theUrl)
             {
@@ -194,8 +200,24 @@ class index:
                 //return JSON.parse(xmlHttp.responseText);
             }
         function media_play(file) {
-            http_get("/media_play?file="+file);
+            //var brightness=parseInt(document.getElementById('brightness').value)
+            brightness=localStorage.brightness
+            http_get("/media_play?file="+file+"&brightness="+brightness);
             window.location.reload(); // pretty cheap
+        }
+        function hr_set(offset=0) {
+            var hr=parseInt(document.getElementById('hr').value)
+            if (offset < 0 || offset > 0) {
+                hr += offset
+                document.getElementById('hr').value = hr
+            }
+            http_get('/hr?do=set&hr='+hr+'&brightness='+localStorage.brightness)
+        }
+        window.onload = function (e) {
+            console.log("localStorage", localStorage)
+            if (localStorage.brightness) {
+                document.getElementById('brightness').value=localStorage.brightness
+            }
         }
         </script>
 
@@ -228,23 +250,24 @@ class index:
             <br><input type="submit" value="Delete"/>
             </form>
 
-            </td>
+        </td>
 
         <td valign=top>
             <h2>Control Display</h2>
+            <input type=text size=4 id=brightness value=%s onchange='javascript:localStorage.brightness=document.getElementById("brightness").value'> brightness<br>
             <h3>Counter</h3>
             <!-- stop: &#9724; pause: &#9646;&#9646; play: &#9654; record: &#9679; -->
-            <button onclick="javascript:http_get('/counter?do=play')" class=play>&#9654;</button>
+            <button onclick="javascript:http_get('/counter?do=play&brightness='+localStorage.brightness)" class=play>&#9654;</button>
             <button onclick="javascript:http_get('/counter?do=pause')" class=pause>&#9646;&#9646;</button>
             <button onclick="javascript:http_get('/counter?do=stop')" class=pause>&#9724;</button><br>
             <h3>Set Pulse</h3>
-            <button onclick="javascript:http_get('/start')" class=old>&#9654;</button>
-            <button onclick="javascript:http_get('/stop')" class=old>&#9724;</button><br>
-            <button onclick="javascript:http_get('/hr?do=+')" class=old>+</button><button onclick="javascript:http_get('/hr?do=-')" class=old>-</button>
-<input type=text size=4><button onclick="javascript:http_get('/hr?do=set')" class=old>set</button><br>
+            <button onclick="javascript:http_get('/hr?do=start&brightness='+localStorage.brightness)">&#9654;</button>
+            <button onclick="javascript:http_get('/hr?do=stop')">&#9724;</button><br>
+            <button onclick="javascript:hr_set(1)">+</button><button onclick="javascript:hr_set(-1)">-</button>
+<input type=text size=4 id=hr value=60><button onclick="javascript:hr_set()">set</button><br>
             <h3>Media Show</h3>
-            <button onclick="javascript:media_play('%s')" class=old>&lt;&lt;</button>
-            <button onclick="javascript:media_play('%s')" class=old>&gt;&gt;</button><br><br>
+            <button onclick="javascript:media_play('%s')">&lt;&lt;</button>
+            <button onclick="javascript:media_play('%s')">&gt;&gt;</button><br><br>
             <div id=medialist>
             %s
             </div>
@@ -253,28 +276,35 @@ class index:
         </table>
         <br><hr>
 
-        <button onclick="javascript:http_get('/osctest')" class=old>osc test</button>
+        <button onclick="javascript:http_get('/osctest')">osc test</button>
+        <button onclick="javascript:http_get('/displaytest')">display test</button>
         <br>
         </center><pre id=debug></pre>
+        </body>
         </html>
-        """%(MODEL_NAME, MODEL_NAME, mediafilesdelete,mediaprevious, medianext, mediafilescontrol, ) #"<br>\n".join(soundfiles))
+        """%(MODEL_NAME, MODEL_NAME, mediafilesdelete, BRIGHTNESS, mediaprevious, medianext, mediafilescontrol, ) #"<br>\n".join(soundfiles))
 
 def killall():
     p = subprocess.Popen(['ps', '-x'], stdout=subprocess.PIPE)
     out, err = p.communicate()
     for p in out.splitlines():
         if CMDIMAGE in p or CMDVIDEO in p or \
-           CMDCOUNT in p or CMDTESTDISPLAY in p:
+           CMDCOUNT in p or CMDTESTDISPLAY in p or \
+           CMDTEXT in p or 'sleep' in p:
            print ('kill',p)
            pid=int(p.split()[0])
            print ('pid', pid)
-           os.kill( int(p.split()[0]), 9) #15=SIGTERM, 9=SIGKILL
+           os.kill( int(p.split()[0]), 15) #15=SIGTERM, 9=SIGKILL
 
 
 class media_play:
     def GET(self):
         input = web.input()
         file = input.file
+        global BRIGHTNESS
+        if 'brightness' in input and len(input.brightness)>0 and input.brightness != 'undefined':
+            BRIGHTNESS = str(min(100, int(input.brightness)))
+
         print('media_play', file)
         fctl = open(MEDIACONTROLFILE, 'w')
         fctl.write(file)
@@ -290,21 +320,30 @@ class media_play:
         if type in MEDIACOUNTER:
             # check if contents of the file are valid arguemtns and if so
             # change the defaults. Mainly check font exists
-            countargs = CMDCOUNTARGS
-            with open(file) as f:
-                newargs = f.read().replace('\n', '').replace('\r', '')
-                if len(newargs) > 0:
-                    font = [elm for elm in newargs.split() if '.bdf' in elm]
-                    if len(font) > 0 and os.path.exists(font[0]):
-                        countargs = newargs
-            command = CMDCOUNT
-            args = [command]+MATRIXARGS.split(' ')+countargs.split(' ')
+            if 'counter' in file:
+                countargs = CMDCOUNTARGS
+                with open(file) as f:
+                    newargs = f.read().replace('\n', '').replace('\r', '')
+                    if len(newargs) > 0:
+                        font = [elm for elm in newargs.split() if '.bdf' in elm]
+                        if len(font) > 0 and os.path.exists(font[0]):
+                            countargs = newargs
+                command = CMDCOUNT
+                bright = "-b "+BRIGHTNESS
+                args = [command, bright]+MATRIXARGS.split(' ')+countargs.split(' ')
+            else:
+                command = 'B='+BRIGHTNESS+' '+CMDTEXT
+                # MATRIXARGS already contained inside of text.sh
+                args = [command]+[file]
+
         elif type in MEDIAVIDEO:
             command = CMDVIDEO
-            args = [command]+MATRIXARGS.split(' ')+CMDVIDEOARGS.split(' ')+[file]
+            bright = "--led-brightness="+BRIGHTNESS
+            args = [command,bright]+MATRIXARGS.split(' ')+CMDVIDEOARGS.split(' ')+[file]
         elif type in MEDIAIMAGE:
             command = CMDIMAGE
-            args = [command]+MATRIXARGS.split(' ')+CMDIMAGEARGS.split(' ')+[file]
+            bright = "--led-brightness="+BRIGHTNESS
+            args = [command,bright]+MATRIXARGS.split(' ')+CMDIMAGEARGS.split(' ')+[file]
         else:
             raise web.internalerror()
 
@@ -317,6 +356,9 @@ class media_play:
 class counter:
     def GET(self):
         input = web.input()
+        global BRIGHTNESS
+        if 'brightness' in input and len(input.brightness)>0 and input.brightness != 'undefined':
+            BRIGHTNESS = str(min(100, int(input.brightness)))
         if input.do == "play":
             # If already running just unpause, else start new
             p = subprocess.Popen(['ps', '-x'], stdout=subprocess.PIPE)
@@ -329,7 +371,8 @@ class counter:
 
             killall()
             command = CMDCOUNT
-            args = [command]+MATRIXARGS.split(' ')+CMDCOUNTARGS.split(' ')
+            bright = "-b "+BRIGHTNESS
+            args = [command, bright]+MATRIXARGS.split(' ')+CMDCOUNTARGS.split(' ')
             os.system(" ".join(args)+" &")
             return "started"
         elif input.do == "pause":
@@ -381,10 +424,26 @@ class upload:
             fctl.close()
         raise web.seeother('/')
 
+class Help:
+    def GET(self):
+        return """
+            <html><head><title>model: %s</title><meta charset="utf-8">
+            <link rel="stylesheet" href="/style.css">
+            </head><body>
+            Uploaded files (media files) that have the file name ending of .txt
+            will cause the counter to be started or text to be shown.
+            </body></html>"""
+
+
+
 try:
     from html import escape  # python 3.x
 except ImportError:
     from cgi import escape  # python 2.x
 
 if __name__ == "__main__":
-    app.run()
+    os.setpgrp() # child procs will be in proc group. when we die they do
+    try:
+        app.run()
+    finally:
+        os.killpg(0, signal.SIGTERM)

@@ -1,0 +1,1 @@
+-d %M:%S -m 1 -C 255,0,0 -f /home/pi/git/display/counter/ourfonts/SourceSansPro-Regular.otf-56.bdf -b 99 -S -6 -y -18 -x -3 -s 9000

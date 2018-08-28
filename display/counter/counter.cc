@@ -59,6 +59,7 @@ static int usage(const char *progname) {
           "\t-B <r,g,b>        : Background-Color. Default 0,0,0\n"
           "\t-O <r,g,b>        : Outline-Color, e.g. to increase contrast.\n"
           "\t-s <port>         : enable osc on port\n"
+          "\t-o <type>         : osc modifies = brightness or square (Default: brightness)\n"
           );
 
   return 1;
@@ -99,9 +100,11 @@ int main(int argc, char *argv[]) {
   int osc_port = 0;
   volatile bool osc_enabled = false;
   int osc_received = 0;
+  const char *osc_modifies = "brightness";
+  int square_size = 0;
 
   int opt;
-  while ((opt = getopt(argc, argv, "x:y:f:C:B:O:b:S:d:m:s:")) != -1) {
+  while ((opt = getopt(argc, argv, "x:y:f:C:B:O:b:S:d:m:s:o:")) != -1) {
     switch (opt) {
     case 'd': time_format = strdup(optarg); break;
     case 'm': millidecimal = atoi(optarg); append_milli = true; break;
@@ -111,6 +114,7 @@ int main(int argc, char *argv[]) {
     case 'f': bdf_font_file = strdup(optarg); break;
     case 'S': letter_spacing = atoi(optarg); break;
     case 's': osc_port = atoi(optarg); break;
+    case 'o': osc_modifies = strdup(optarg); break;
     case 'C':
       if (!parseColor(&color, optarg)) {
         fprintf(stderr, "Invalid color spec: %s\n", optarg);
@@ -191,11 +195,15 @@ int main(int argc, char *argv[]) {
       // st.set_callbacks([&st](){printf("Thread init: %p.\n",&st);},
       //       [](){printf("Thread cleanup.\n");});
       // use cpp example from that commit
-      printf("osc URL %s", st.url());
       st.add_method("int", "i",
-                    [&osc_received](lo_arg **argv, int)
+                    [&osc_received,&matrix,&osc_modifies,&square_size](lo_arg **argv, int)
                     {
-                     printf("int (%d): %d\n", ++osc_received, argv[0]->i);
+                      printf("int (%d): %d\n", ++osc_received, argv[0]->i);
+                      if (strcmp (osc_modifies,"square") == 0 ) {
+                        square_size = argv[0]->i;
+                      }
+                      else
+                        matrix->SetBrightness(argv[0]->i);
                     }
                    );
      st.start();
@@ -233,14 +241,6 @@ int main(int argc, char *argv[]) {
             if (brightness < 100) brightness += 1;
             matrix->SetBrightness(brightness);
             // BTW if you start app with brightness 100, then reducing below 70 results in all leds off. so start with -b 99 hack
-            // if (  (brightness == 100)
-            //     && FullSaturation(color)
-            //     && FullSaturation(bg_color)
-            //     && FullSaturation(outline_color) )
-            //   matrix->SetPWMBits(1);
-            // else
-            //   matrix->SetPWMBits(0);
-
             break;
           case 'a':
             if (brightness > 0) brightness -= 1;

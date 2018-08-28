@@ -23,9 +23,11 @@ ping -c 60 -i 2 -w 2 10.0.0.2 &
 
 # install-info
 echo "userstartup: INSTALL THINGS"
-command -v rsync || dpkg -i src/rsync_*_armhf.deb &
-python -c 'import web' || dpkg -i src/python-webpy_*.deb
-python -c 'import pyinotify' || dpkg -i src/python-pyinotify_*.deb
+command -v rsync || dpkg -i ~pi/src/stretch/rsync_*_armhf.deb &
+python -c 'import web' || dpkg -i ~pi/src/stretch/python-webpy_*.deb
+python -c 'import pyinotify' || dpkg -i ~pi/src/stretch/python-pyinotify_*.deb
+python -c 'import liblo' || dpkg -i ~pi/src/stretch/python-liblo_*.deb
+test -e /usr/include/lo/lo.h || dpkg -i ~pi/src/stretch/liblo7_*.deb
 # the dependency tree for avconv is too large. install src/* or apt-get it
 #command -v avconv || dpkg -i src/*.deb
 
@@ -43,7 +45,12 @@ echo "userstartup: ENABLE THINGS"
 # in the sourced configuration it does not cause the rest of the raspberry pi
 # to crash
 (
-  source $(dirname $0)configuration.sh
+  source /home/pi/git/display/configuration.sh
+
+  # settings suggested by rpi-rgb
+  timedatectl set-ntp false
+  systemctl stop cron
+  #sudo apt-get remove bluez bluez-firmware pi-bluetooth triggerhappy pigpio
 
   echo "userstartup: WIFI"
   /home/pi/snippits/wifi_client.sh &
@@ -53,7 +60,11 @@ echo "userstartup: ENABLE THINGS"
 
   echo "userstartup: start web ui"
   python /home/pi/git/display/ui/server.py &
-)
+
+  echo "userstartup: start osc bridge "
+  python /home/pi/git/display/counter/osc-hr-bridge.py &
+
+) &
 
 echo "userstartup: EXIT"
 

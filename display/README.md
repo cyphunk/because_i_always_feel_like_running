@@ -94,3 +94,11 @@ EOF
 Test:
   ~pi/git/display/libs/rpi-fb-matrix/display-test
   ~pi/git/display/test_display.sh
+
+trying
+https://auvidea.com/b101-hdmi-to-csi-2-bridge-15-pin-fpc/
+
+perl -e 'print "\xff\x00\x00" x 30000; while(){}'
+(cat ~pi/git/display/media_player/media/04_ui_192x96.ledcat; sleep 10) | /home/pi/git/display/libs/rpi-rgb-led-matrix/examples-api-use/ledcat --led-gpio-mapping=adafruit-hat-pwm --led-rows 32 --led-cols 64 --led-pixel-mapper="S-Mapper;Rotate:90" --led-chain=6 --led-no-drop-privs
+
+raspivid  -w 128 -h 64 -n -fps 60 -o /dev/null -r - -rf rgb -v -t 0 -hf | /home/pi/git/display/libs/rpi-rgb-led-matrix/examples-api-use/ledcat --led-gpio-mapping=adafruit-hat-pwm --led-rows 32 --led-cols 64 --led-pixel-mapper="S-Mapper;Rotate:90" --led-chain=6 --led-no-drop-privs

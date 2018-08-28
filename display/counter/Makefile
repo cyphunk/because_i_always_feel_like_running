@@ -24,7 +24,7 @@ brightness: brightness.o
 osc-send.o: osc-send.c
 	g++ $(CFLAGS) -c -o $@ $<
 osc-send: osc-send.o
-	g++ $< -o $@ $(LFLAGS)
+	g++ $< -o $@ -llo
 
 clean:
 	rm -f *.o clock counter brightness osc-send
