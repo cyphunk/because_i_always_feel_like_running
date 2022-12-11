@@ -55,7 +55,7 @@ echo "userstartup: ENABLE THINGS"
   echo "userstartup: WIFI"
   /home/pi/snippits/wifi_client.sh &
 
-  echo "userstartup: start display test"
+  echo "userstartup: start display" 
   /home/pi/git/display/test_display.sh &
 
   echo "userstartup: start web ui"
@@ -63,6 +63,16 @@ echo "userstartup: ENABLE THINGS"
 
   echo "userstartup: start osc bridge "
   python /home/pi/git/display/counter/osc-hr-bridge.py &
+
+  # assuming isolcpus=2 added to cmdline.txt
+  # Very ugly hack to catch dangling child proc's that wouldnt take the task set
+  # we had tried before to taskset server.py 
+  ( while [ 1 ]; do 
+     pids=`/bin/ps aux | grep rpi-rgb | grep -v grep | awk '{print $2}'`
+     test "$pids" != "" && taskset -a -cp 2 $pids
+     sleep 30
+    done
+  ) &
 
 ) &
 

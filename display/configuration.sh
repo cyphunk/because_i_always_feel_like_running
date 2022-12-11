@@ -13,9 +13,10 @@ export UTILS="$BASE_DIR/libs/rpi-rgb-led-matrix/utils"
 
 export BRIGHTNESS="10"
 
-export MATRIXARGS='--led-gpio-mapping=adafruit-hat-pwm --led-rows 32 --led-cols 64 --led-pixel-mapper="S-Mapper;Rotate:90" --led-chain=6 --led-no-drop-privs --led-slowdown-gpio=2'
+export MATRIXARGS='--led-gpio-mapping=adafruit-hat-pwm --led-rows 32 --led-cols 64 --led-pixel-mapper="S-Mapper;Rotate:90" --led-chain=6 --led-no-drop-privs --led-slowdown-gpio=2 --led-pwm-bits=2 --led-pwm-dither-bits=1 '
 # --led-brightness works for some commands but others
 # may have their own -b that then ignores that
+# --led-pwm-bits=2 we noticed makes power supply quieter and also hz much higher 300, also adding --led-pwm-dither-bits=1 brings it to 600hz
 
 # append _30000 for 33Hz compiled version
 # append _25000 for 40Hz compiled version
